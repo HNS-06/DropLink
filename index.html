@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DropLink — P2P Encrypted File Share</title>
+  <meta name="description" content="Secure, serverless browser-to-browser peer-to-peer file sharing over WebRTC. Featuring end-to-end AES-256 encryption, SHA-256 integrity verification, and instant sharing links." />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#060608" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+
+  <!-- Noise overlay -->
+  <canvas id="noise-canvas"></canvas>
+
+  <!-- Grid background -->
+  <div class="grid-bg"></div>
+
+  <!-- App Shell -->
+  <div id="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">⬡</span>
+        <span class="logo-text">DropLink</span>
+        <span class="logo-badge">P2P · E2E ENCRYPTED</span>
+      </div>
+      <div class="header-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">offline</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+
+      <!-- ── SCREEN: HOME ── -->
+      <section id="screen-home" class="screen active">
+        <div class="hero">
+          <h1 class="hero-title">
+            <span class="line1">Share files.</span>
+            <span class="line2">Encrypted.</span>
+            <span class="line3">No servers.</span>
+          </h1>
+          <p class="hero-sub">Files travel directly between browsers via WebRTC. AES-256 encrypted. Zero data stored.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="btn-send">
+              <span class="btn-icon">↑</span> Send Files
+            </button>
+            <button class="btn btn-outline" id="btn-receive">
+              <span class="btn-icon">↓</span> Receive Files
+            </button>
+          </div>
+          <div class="feature-strip">
+            <div class="feature"><span class="feat-icon">🔒</span> AES-256 GCM</div>
+            <div class="feature"><span class="feat-icon">⚡</span> WebRTC Direct</div>
+            <div class="feature"><span class="feat-icon">🚫</span> No Upload</div>
+            <div class="feature"><span class="feat-icon">♾️</span> Any File Size</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SCREEN: SEND ── -->
+      <section id="screen-send" class="screen">
+        <div class="panel">
+          <button class="back-btn" id="back-from-send">← back</button>
+          <h2 class="panel-title">Send Files</h2>
+
+          <!-- Step 1: Drop Zone -->
+          <div class="step" id="step-drop">
+            <div class="drop-zone" id="drop-zone">
+              <div class="drop-icon">⬡</div>
+              <p class="drop-label">Drop files here</p>
+              <p class="drop-sub">or click to browse</p>
+              <input type="file" id="file-input" multiple hidden />
+            </div>
+            <div id="file-list" class="file-list hidden"></div>
+            <button class="btn btn-primary btn-full hidden" id="btn-connect-send">Generate Link →</button>
+          </div>
+
+          <!-- Step 2: Share Code -->
+          <div class="step hidden" id="step-share">
+            <div class="code-display">
+              <p class="code-label">Share this code with receiver</p>
+              <div class="code-box">
+                <span id="room-code-display">----</span>
+                <button class="copy-btn" id="copy-code">⧉ copy</button>
+              </div>
+              <div class="qr-wrap" id="qr-wrap"></div>
+              <p class="code-hint">Waiting for receiver to connect…</p>
+            </div>
+            <div class="connecting-anim" id="connecting-anim">
+              <div class="pulse-ring"></div>
+              <div class="pulse-ring delay1"></div>
+              <div class="pulse-ring delay2"></div>
+              <span class="pulse-label">Listening</span>
+            </div>
+          </div>
+
+          <!-- Step 3: Transfer -->
+          <div class="step hidden" id="step-transfer-send">
+            <div class="peer-info">
+              <div class="peer-avatar">👤</div>
+              <div>
+                <p class="peer-label">Connected to receiver</p>
+                <p class="peer-enc">🔒 E2E Encrypted channel active</p>
+              </div>
+            </div>
+            <div id="send-progress-list" class="progress-list"></div>
+            <div class="transfer-stats" id="send-stats">
+              <div class="stat"><span class="stat-val" id="send-speed">0 B/s</span><span class="stat-key">speed</span></div>
+              <div class="stat"><span class="stat-val" id="send-total">0 B</span><span class="stat-key">total size</span></div>
+              <div class="stat"><span class="stat-val" id="send-time">--</span><span class="stat-key">est. remain</span></div>
+            </div>
+          </div>
+
+          <!-- Step 4: Done -->
+          <div class="step hidden" id="step-send-done">
+            <div class="done-screen">
+              <div class="done-icon">✓</div>
+              <h3>All files sent!</h3>
+              <p>Transfer complete. Connection closed.</p>
+              <button class="btn btn-outline" id="btn-send-again">Send more files</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SCREEN: RECEIVE ── -->
+      <section id="screen-receive" class="screen">
+        <div class="panel">
+          <button class="back-btn" id="back-from-receive">← back</button>
+          <h2 class="panel-title">Receive Files</h2>
+
+          <!-- Step 1: Enter Code -->
+          <div class="step" id="step-enter-code">
+            <div class="code-entry">
+              <p class="code-label">Enter the sender's code</p>
+              <div class="code-inputs" id="code-inputs">
+                <input class="code-char" maxlength="1" type="text" />
+                <input class="code-char" maxlength="1" type="text" />
+                <input class="code-char" maxlength="1" type="text" />
+                <input class="code-char" maxlength="1" type="text" />
+                <span class="code-sep">-</span>
+                <input class="code-char" maxlength="1" type="text" />
+                <input class="code-char" maxlength="1" type="text" />
+                <input class="code-char" maxlength="1" type="text" />
+                <input class="code-char" maxlength="1" type="text" />
+              </div>
+              <button class="btn btn-primary btn-full" id="btn-join">Connect to Sender →</button>
+            </div>
+          </div>
+
+          <!-- Step 2: Connecting -->
+          <div class="step hidden" id="step-connecting">
+            <div class="connecting-anim">
+              <div class="pulse-ring"></div>
+              <div class="pulse-ring delay1"></div>
+              <div class="pulse-ring delay2"></div>
+              <span class="pulse-label">Connecting…</span>
+            </div>
+          </div>
+
+          <!-- Step 3: Incoming files -->
+          <div class="step hidden" id="step-transfer-receive">
+            <div class="peer-info">
+              <div class="peer-avatar">📤</div>
+              <div>
+                <p class="peer-label">Connected to sender</p>
+                <p class="peer-enc">🔒 E2E Encrypted channel active</p>
+              </div>
+            </div>
+            <div id="receive-progress-list" class="progress-list"></div>
+            <div class="transfer-stats" id="receive-stats">
+              <div class="stat"><span class="stat-val" id="recv-speed">0 B/s</span><span class="stat-key">speed</span></div>
+              <div class="stat"><span class="stat-val" id="recv-total">0 B</span><span class="stat-key">received</span></div>
+              <div class="stat"><span class="stat-val" id="recv-files">0</span><span class="stat-key">files</span></div>
+            </div>
+          </div>
+
+          <!-- Step 4: Done -->
+          <div class="step hidden" id="step-receive-done">
+            <div class="done-screen">
+              <div class="done-icon">✓</div>
+              <h3>Files received!</h3>
+              <div id="received-files-list" class="received-list"></div>
+              <button class="btn btn-outline" id="btn-receive-again">Receive more</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <!-- Live transfer overlay (optional large preview) -->
+    <div class="transfer-orb" id="transfer-orb" style="display:none">
+      <svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="80" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="502" stroke-dashoffset="502" id="orb-circle"/></svg>
+      <span id="orb-pct">0%</span>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="src/noise.js"></script>
+  <script src="src/webrtc.js"></script>
+  <script src="src/crypto.js"></script>
+  <script src="src/transfer.js"></script>
+  <script src="src/ui.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
